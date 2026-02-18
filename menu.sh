@@ -140,21 +140,22 @@ blob_manager() {
     mkdir -p "$DOWNLOAD_DIR"
 
     echo -e "${CYAN}Fetching blobs...${NC}"
+
     RAW=$(shelby account blobs 2>/dev/null)
-    
-    # Remove ANSI color codes
-RAW=$(echo "$RAW" | sed 's/\x1b\[[0-9;]*m//g')
+
+    # Remove ALL ANSI color codes
+    RAW=$(printf '%s\n' "$RAW" | sed -r 's/\x1B\[[0-9;]*[mK]//g')
 
     if [ -z "$RAW" ]; then
         echo -e "${RED}No blobs found.${NC}"
         return
     fi
 
-    # Extract only rows that contain actual file entries
+    # Extract only lines that contain real file rows
     mapfile -t LINES < <(
         echo "$RAW" |
-        awk '/Stored Blobs/{flag=1; next} /Done!/{flag=0} flag' |
-        grep '\.jpg\|\.mp4\|\.png\|\.pdf\|\.txt'
+        grep '│' |
+        grep -E '\.(jpg|mp4|png|pdf|txt)'
     )
 
     if [ ${#LINES[@]} -eq 0 ]; then
@@ -172,9 +173,8 @@ RAW=$(echo "$RAW" | sed 's/\x1b\[[0-9;]*m//g')
 
     for line in "${LINES[@]}"; do
 
-        # Extract name and size using column split
-        NAME=$(echo "$line" | awk -F '│' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        SIZE=$(echo "$line" | awk -F '│' '{print $3}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        NAME=$(echo "$line" | awk -F '│' '{print $2}' | xargs)
+        SIZE=$(echo "$line" | awk -F '│' '{print $3}' | xargs)
 
         # Apply search filter
         if [ -n "$FILTER" ]; then
@@ -215,19 +215,18 @@ RAW=$(echo "$RAW" | sed 's/\x1b\[[0-9;]*m//g')
     read -p "Choose action: " ACTION
 
     case $ACTION in
-    1)
-        OUT="$DOWNLOAD_DIR/$SELECTED"
+        1)
+            OUT="$DOWNLOAD_DIR/$SELECTED"
 
-        printf 'DEBUG HEX: '
-        printf '%s' "$SELECTED" | hexdump -C
-        echo
+            # Optional debug (remove later)
+            # printf 'DEBUG HEX: '; printf '%s' "$SELECTED" | hexdump -C; echo
 
-        if shelby download "$SELECTED" "$OUT"; then
-            echo -e "${GREEN}Saved to $OUT${NC}"
-        else
-            echo -e "${RED}Download failed.${NC}"
-        fi
-        ;;
+            if shelby download "$SELECTED" "$OUT"; then
+                echo -e "${GREEN}Saved to $OUT${NC}"
+            else
+                echo -e "${RED}Download failed.${NC}"
+            fi
+            ;;
         *)
             echo "Cancelled."
             ;;
