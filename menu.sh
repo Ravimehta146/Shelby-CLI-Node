@@ -122,14 +122,31 @@ upload_random_video() {
 
 auto_upload_from_folder() {
 
-    FILES=("$UPLOAD_DIR"/*)
-    [ ${#FILES[@]} -eq 0 ] && echo "No files in $UPLOAD_DIR" && return
+    UPLOAD_DIR="$HOME/shelby_uploads"
+    mkdir -p "$UPLOAD_DIR"
 
-    INDEX=$(( RANDOM % ${#FILES[@]} ))
-    FILE="${FILES[$INDEX]}"
+    # Enable nullglob so * returns empty if no files
+    shopt -s nullglob
+    FILES=("$UPLOAD_DIR"/*)
+    shopt -u nullglob
+
+    if [ ${#FILES[@]} -eq 0 ]; then
+        echo "No files found in $UPLOAD_DIR"
+        echo "Add files (pdf, mp4, jpg, txt, etc.) first."
+        return
+    fi
+
+    RANDOM_INDEX=$(( RANDOM % ${#FILES[@]} ))
+    FILE="${FILES[$RANDOM_INDEX]}"
     BLOB=$(basename "$FILE")
 
-    shelby upload "$FILE" "$BLOB" -e "in 7 days" --assume-yes
+    echo "Uploading: $BLOB"
+
+    if shelby upload "$FILE" "$BLOB" -e "in 7 days" --assume-yes; then
+        echo "Upload successful."
+    else
+        echo "Upload failed."
+    fi
 }
 
 # ================= DOWNLOAD =================
