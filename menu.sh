@@ -212,14 +212,19 @@ blob_manager() {
     read -p "Choose action: " ACTION
 
     case $ACTION in
-        1)
-            OUT="$DOWNLOAD_DIR/$SELECTED"
-            if shelby download "$SELECTED" "$OUT"; then
-                echo -e "${GREEN}Saved to $OUT${NC}"
-            else
-                echo -e "${RED}Download failed.${NC}"
-            fi
-            ;;
+    1)
+        OUT="$DOWNLOAD_DIR/$SELECTED"
+
+        printf 'DEBUG HEX: '
+        printf '%s' "$SELECTED" | hexdump -C
+        echo
+
+        if shelby download "$SELECTED" "$OUT"; then
+            echo -e "${GREEN}Saved to $OUT${NC}"
+        else
+            echo -e "${RED}Download failed.${NC}"
+        fi
+        ;;
         *)
             echo "Cancelled."
             ;;
