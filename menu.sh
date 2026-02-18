@@ -23,7 +23,7 @@ show_menu() {
     echo -e "${YELLOW}5.${NC} Faucet (Get Tokens)"
     echo -e "${YELLOW}6.${NC} Check Account Balance"
     echo -e "${YELLOW}7.${NC} Random Image Upload (Pixabay)"
-    echo -e "${YELLOW}8.${NC} Export Private Key"
+    echo -e "${YELLOW}8.${NC} Export Account Info (Address + Private Key)"
     echo -e "${YELLOW}0.${NC} Exit"
     echo -e "${CYAN}====================================================${NC}"
 }
@@ -127,12 +127,12 @@ upload_random_image() {
     echo -e "${GREEN}Local file removed.${NC}"
 }
 
-export_private_key() {
+export_account_info() {
 
     CONFIG="$HOME/.shelby/config.yaml"
 
     if [ ! -f "$CONFIG" ]; then
-        echo -e "${RED}Shelby config not found. Run shelby init first.${NC}"
+        echo -e "${RED}Shelby not initialized. Run shelby init first.${NC}"
         return
     fi
 
@@ -145,11 +145,19 @@ export_private_key() {
     fi
 
     echo
-    echo -e "${CYAN}Your Private Key:${NC}"
+    echo -e "${CYAN}Account Information:${NC}"
+    echo "------------------------------------"
+
+    # Show address from CLI (safer than parsing)
+    shelby account list
+
+    echo
+    echo -e "${CYAN}Private Key:${NC}"
     
-    # Extract private key line only
+    # Extract private key line from config.yaml
     grep -i "private" "$CONFIG"
 
+    echo "------------------------------------"
     echo
 }
 
@@ -165,7 +173,7 @@ while true; do
         5) faucet ;;
         6) check_balance ;;
         7) upload_random_image ;;
-        8) export_private_key ;;
+        8) export_account_info ;;
         0) exit 0 ;;
         *) echo -e "${RED}Invalid option.${NC}" ;;
     esac
