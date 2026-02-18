@@ -106,7 +106,7 @@ upload_random_image() {
     MAX_RETRY=3
 
     while [ $ATTEMPTS -lt $MAX_RETRY ]; do
-        shelby upload "$FILENAME" "$FILENAME" -e "in 7 days" --assume-yes >> "$LOG_FILE" 2>&1
+        shelby upload "$FILENAME" "$FILENAME" -e "in 7 days" --assume-yes
 
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}Upload successful.${NC}"
