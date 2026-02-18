@@ -24,6 +24,7 @@ show_menu() {
     echo -e "${YELLOW}6.${NC} Check Account Balance"
     echo -e "${YELLOW}7.${NC} Random Image Upload (Pixabay)"
     echo -e "${YELLOW}8.${NC} Export Account Info (Address + Private Key)"
+    echo -e "${YELLOW}10.${NC} Auto Download & Upload Video (Pixabay)"
     echo -e "${YELLOW}0.${NC} Exit"
     echo -e "${CYAN}====================================================${NC}"
 }
@@ -161,6 +162,61 @@ export_account_info() {
     echo
 }
 
+auto_pixabay_video_upload() {
+
+    if [ ! -f "$HOME/.pixabay_api_key" ]; then
+        echo -e "${RED}Pixabay API key not found.${NC}"
+        return
+    fi
+
+    API_KEY=$(cat "$HOME/.pixabay_api_key")
+
+    echo -e "${CYAN}Fetching random video from Pixabay...${NC}"
+
+    RESPONSE=$(curl -s "https://pixabay.com/api/videos/?key=$API_KEY&per_page=50")
+
+    TOTAL=$(echo "$RESPONSE" | jq '.hits | length')
+
+    if [ "$TOTAL" -eq 0 ]; then
+        echo -e "${RED}No videos found.${NC}"
+        return
+    fi
+
+    RANDOM_VIDEO=$(( RANDOM % TOTAL ))
+
+    VIDEO_URL=$(echo "$RESPONSE" | jq -r ".hits[$RANDOM_VIDEO].videos.medium.url")
+
+    if [ "$VIDEO_URL" = "null" ] || [ -z "$VIDEO_URL" ]; then
+        echo -e "${RED}Failed to get video URL.${NC}"
+        return
+    fi
+
+    TIMESTAMP="$(date +%s)-$RANDOM"
+    FILENAME="$PWD/video-$TIMESTAMP.mp4"
+    BLOB_NAME="video-$TIMESTAMP.mp4"
+
+    echo -e "${CYAN}Downloading video...${NC}"
+    curl -L -o "$FILENAME" "$VIDEO_URL"
+
+    if [ ! -f "$FILENAME" ]; then
+        echo -e "${RED}Video download failed.${NC}"
+        return
+    fi
+
+    echo -e "${GREEN}Downloaded: $(basename "$FILENAME")${NC}"
+
+    echo -e "${CYAN}Uploading to Shelby...${NC}"
+
+    if shelby upload "$FILENAME" "$BLOB_NAME" -e "in 7 days" --assume-yes; then
+        echo -e "${GREEN}Upload successful.${NC}"
+    else
+        echo -e "${RED}Upload failed.${NC}"
+    fi
+
+    rm -f "$FILENAME"
+    echo -e "${GREEN}Local file removed.${NC}"
+}
+
 while true; do
     show_menu
     read -p "Select option: " opt
@@ -174,6 +230,7 @@ while true; do
         6) check_balance ;;
         7) upload_random_image ;;
         8) export_account_info ;;
+        10) auto_pixabay_video_upload ;;
         0) exit 0 ;;
         *) echo -e "${RED}Invalid option.${NC}" ;;
     esac
