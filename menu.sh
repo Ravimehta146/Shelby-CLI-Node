@@ -87,7 +87,7 @@ upload_random_image() {
     IMAGE_URL=$(echo "$RESPONSE" | jq -r ".hits[$RANDOM_IMAGE].largeImageURL")
 
     TIMESTAMP=$(date +%F-%H-%M-%S)
-    FILENAME="$QUERY-$TIMESTAMP.jpg"
+    FILENAME="$PWD/$QUERY-$TIMESTAMP.jpg"
 
     curl -s -o "$FILENAME" "$IMAGE_URL"
 
@@ -106,7 +106,7 @@ upload_random_image() {
     MAX_RETRY=3
 
     while [ $ATTEMPTS -lt $MAX_RETRY ]; do
-        shelby upload "$FILENAME" "$FILENAME" -e "in 7 days" --assume-yes
+        shelby upload "$FILENAME" "$(basename "$FILENAME")" -e "in 7 days" --assume-yes
 
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}Upload successful.${NC}"
