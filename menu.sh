@@ -147,8 +147,12 @@ blob_manager() {
         return
     fi
 
-    # Extract only rows that start with │ and contain real blob entries
-    mapfile -t LINES < <(echo "$RAW" | grep '^│' | grep -v 'Name')
+    # Extract only rows that contain actual file entries
+    mapfile -t LINES < <(
+        echo "$RAW" |
+        awk '/Stored Blobs/{flag=1; next} /Done!/{flag=0} flag' |
+        grep '\.jpg\|\.mp4\|\.png\|\.pdf\|\.txt'
+    )
 
     if [ ${#LINES[@]} -eq 0 ]; then
         echo -e "${RED}No blobs available.${NC}"
@@ -165,11 +169,11 @@ blob_manager() {
 
     for line in "${LINES[@]}"; do
 
-        # Extract columns using │ as delimiter
+        # Extract name and size using column split
         NAME=$(echo "$line" | awk -F '│' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         SIZE=$(echo "$line" | awk -F '│' '{print $3}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
-        # Apply search filter if provided
+        # Apply search filter
         if [ -n "$FILTER" ]; then
             echo "$NAME" | grep -iq "$FILTER" || continue
         fi
