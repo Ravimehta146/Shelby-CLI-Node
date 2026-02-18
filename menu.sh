@@ -1,120 +1,109 @@
 #!/bin/bash
 
-# Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
-BOLD='\033[1m'
 NC='\033[0m'
 
-CONFIG_FILE="$HOME/.shelby_config"
-
-show_header() {
+show_menu() {
     clear
-    echo -e "${CYAN}========================================================${NC}"
-    echo -e "${BOLD}              SHELBY DEVNET INSTALL MANAGER${NC}"
-    echo -e "${CYAN}========================================================${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo "           Shelby Devnet CLI Full Guide"
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${YELLOW}1.${NC} Install Dependencies"
+    echo -e "${YELLOW}2.${NC} Install Node.js & Git"
+    echo -e "${YELLOW}3.${NC} Install Shelby CLI"
+    echo -e "${YELLOW}4.${NC} Initialize Shelby CLI"
+    echo -e "${YELLOW}5.${NC} Faucet (Get free APT + ShelbyUSD)"
+    echo -e "${YELLOW}6.${NC} Check Account Balance"
+    echo -e "${YELLOW}7.${NC} Upload a File"
+    echo -e "${YELLOW}8.${NC} Download a File"
+    echo -e "${YELLOW}9.${NC} Daily Upload Helper"
+    echo -e "${YELLOW}0.${NC} Exit"
+    echo -e "${CYAN}================================================${NC}"
 }
 
-install_node() {
-    if command -v node >/dev/null 2>&1; then
-        echo -e "${GREEN}Node.js already installed.${NC}"
-        node -v
-        return
-    fi
-
-    echo -e "${CYAN}Installing Node.js 20...${NC}"
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-    sudo apt install -y nodejs
-
-    if command -v node >/dev/null 2>&1; then
-        echo -e "${GREEN}Node.js installed successfully.${NC}"
-        node -v
-    else
-        echo -e "${RED}Node installation failed.${NC}"
-    fi
+install_deps() {
+    echo -e "${CYAN}Installing required dependencies...${NC}"
+    sudo apt-get update && sudo apt-get upgrade -y
+    sudo apt install curl iptables build-essential git wget lz4 jq make gcc nano automake autoconf tmux htop nvme-cli libgbm1 pkg-config libssl-dev libleveldb-dev tar clang bsdmainutils ncdu unzip libleveldb-dev -y
+    sudo apt install -y libssl-dev ca-certificates
+    echo -e "${GREEN}Dependencies installed.${NC}"
 }
 
-install_shelby() {
-    if command -v shelby >/dev/null 2>&1; then
-        echo -e "${GREEN}Shelby CLI already installed.${NC}"
-        shelby --version
-        return
-    fi
+install_node_git() {
+    echo -e "${CYAN}Installing Node.js & Git...${NC}"
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+    sudo apt install -y nodejs git
+    echo -e "${GREEN}Node.js, npm, and Git versions:${NC}"
+    node -v
+    npm -v
+    git --version
+}
 
+install_shelby_cli() {
     echo -e "${CYAN}Installing Shelby CLI...${NC}"
-    npm install -g @shelby-protocol/cli
-
-    if command -v shelby >/dev/null 2>&1; then
-        echo -e "${GREEN}Shelby CLI installed successfully.${NC}"
-        shelby --version
-    else
-        echo -e "${RED}Shelby installation failed.${NC}"
-    fi
+    npm i -g @shelby-protocol/cli
+    echo -e "${GREEN}Shelby CLI version:${NC}"
+    shelby --version
 }
 
 initialize_shelby() {
-    if ! command -v shelby >/dev/null 2>&1; then
-        echo -e "${RED}Shelby CLI not installed.${NC}"
-        return
-    fi
-
     echo -e "${CYAN}Initializing Shelby CLI...${NC}"
     shelby init
 }
 
-set_api_key() {
-    echo -ne "${CYAN}Enter Shelby API Key: ${NC}"
-    read -s API_KEY
-    echo
-    echo "API_KEY=$API_KEY" > "$CONFIG_FILE"
-    echo -e "${GREEN}API key saved to $CONFIG_FILE${NC}"
+faucet() {
+    echo -e "${CYAN}Running faucet command...${NC}"
+    shelby faucet --no-open
+    echo -e "${YELLOW}Copy the URL above and open it in a browser to fund APT & ShelbyUSD tokens.${NC}"
 }
 
-view_config() {
-    if [ -f "$CONFIG_FILE" ]; then
-        source "$CONFIG_FILE"
-        MASKED="${API_KEY:0:6}****"
-        echo -e "${YELLOW}Saved API Key:${NC} $MASKED"
-    else
-        echo -e "${RED}No config file found.${NC}"
-    fi
+check_balance() {
+    echo -e "${CYAN}Fetching account balance...${NC}"
+    shelby account balance
 }
 
-check_version() {
-    if command -v shelby >/dev/null 2>&1; then
-        shelby --version
-    else
-        echo -e "${RED}Shelby CLI not installed.${NC}"
-    fi
+upload_file() {
+    echo -e "${CYAN}Upload path and blob name:[enter]${NC}"
+    read -p "Local file: " localpath
+    read -p "Shelby blob name: " blobname
+    shelby upload "$localpath" "$blobname" -e "in 7 days" --assume-yes
+}
+
+download_file() {
+    echo -e "${CYAN}Download blob to file:[enter]${NC}"
+    read -p "Blob name: " blob
+    read -p "Save as: " outfile
+    shelby download "$blob" "$outfile"
+}
+
+daily_upload() {
+    echo -e "${CYAN}Daily upload helper${NC}"
+    read -p "Enter a message for the file: " msg
+    FILE="daily-$(date +%F-%H-%M-%S).txt"
+    echo "$msg" > "$FILE"
+    shelby upload "$FILE" "$FILE" -e "in 7 days" --assume-yes
+    echo -e "${GREEN}Uploaded daily file as $FILE${NC}"
 }
 
 while true; do
-    show_header
-
-    echo -e "${YELLOW}1.${NC} Install Node.js"
-    echo -e "${YELLOW}2.${NC} Install Shelby CLI"
-    echo -e "${YELLOW}3.${NC} Initialize Shelby (shelby init)"
-    echo -e "${YELLOW}4.${NC} Set API Key"
-    echo -e "${YELLOW}5.${NC} View Saved API Key"
-    echo -e "${YELLOW}6.${NC} Check Shelby Version"
-    echo -e "${YELLOW}7.${NC} Exit"
-    echo -e "${CYAN}========================================================${NC}"
-
-    read -p "Select an option: " choice
-
-    case $choice in
-        1) install_node ;;
-        2) install_shelby ;;
-        3) initialize_shelby ;;
-        4) set_api_key ;;
-        5) view_config ;;
-        6) check_version ;;
-        7) echo -e "${GREEN}Goodbye.${NC}"; exit 0 ;;
-        *) echo -e "${RED}Invalid option.${NC}" ;;
+    show_menu
+    read -p "Choose an option: " opt
+    case $opt in
+        1) install_deps ;;
+        2) install_node_git ;;
+        3) install_shelby_cli ;;
+        4) initialize_shelby ;;
+        5) faucet ;;
+        6) check_balance ;;
+        7) upload_file ;;
+        8) download_file ;;
+        9) daily_upload ;;
+        0) echo -e "${GREEN}Goodbye!${NC}"; exit 0 ;;
+        *) echo -e "${RED}Invalid choice${NC}" ;;
     esac
-
     echo
     read -p "Press Enter to continue..."
 done
