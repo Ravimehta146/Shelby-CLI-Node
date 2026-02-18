@@ -147,19 +147,20 @@ blob_manager() {
         return
     fi
 
-    LIST=$(echo "$RAW" | tail -n +3)
-
-    if [ -z "$LIST" ]; then
-        echo -e "${RED}No blobs available.${NC}"
-        return
-    fi
-
     echo
     read -p "Search keyword (press Enter to skip): " FILTER
+
+    # Extract only table rows that contain actual blobs
+    LIST=$(echo "$RAW" | grep '│' | grep -v 'Blob Name')
 
     if [ -n "$FILTER" ]; then
         LIST=$(echo "$LIST" | grep -i "$FILTER")
         [ -z "$LIST" ] && echo "No match found." && return
+    fi
+
+    if [ -z "$LIST" ]; then
+        echo -e "${RED}No blobs available.${NC}"
+        return
     fi
 
     echo
@@ -168,12 +169,20 @@ blob_manager() {
     declare -a SIZES
 
     while read -r line; do
-        NAME=$(echo "$line" | awk '{print $1}')
-        SIZE=$(echo "$line" | awk '{print $2}')
-        NAMES[$i]="$NAME"
-        SIZES[$i]="$SIZE"
-        echo "$i) $NAME  |  Size: $SIZE"
-        ((i++))
+
+        # Remove vertical bars and trim spaces
+        CLEAN=$(echo "$line" | sed 's/│//g' | xargs)
+
+        NAME=$(echo "$CLEAN" | awk '{print $1}')
+        SIZE=$(echo "$CLEAN" | awk '{print $2}')
+
+        if [ -n "$NAME" ]; then
+            NAMES[$i]="$NAME"
+            SIZES[$i]="$SIZE"
+            echo "$i) $NAME  |  Size: $SIZE"
+            ((i++))
+        fi
+
     done <<< "$LIST"
 
     echo
@@ -198,14 +207,17 @@ blob_manager() {
     case $ACTION in
         1)
             OUT="$DOWNLOAD_DIR/$SELECTED"
-            shelby download "$SELECTED" "$OUT"
-            echo -e "${GREEN}Saved to $OUT${NC}"
+            if shelby download "$SELECTED" "$OUT"; then
+                echo -e "${GREEN}Saved to $OUT${NC}"
+            else
+                echo -e "${RED}Download failed.${NC}"
+            fi
             ;;
         2)
             read -p "Type DELETE to confirm: " CONFIRM
             if [ "$CONFIRM" = "DELETE" ]; then
-                shelby account delete "$SELECTED"
-                echo -e "${GREEN}Deleted.${NC}"
+                echo -e "${RED}Note: Shelby Devnet usually does not allow manual deletion.${NC}"
+                echo -e "${YELLOW}Blobs expire automatically.${NC}"
             else
                 echo "Cancelled."
             fi
