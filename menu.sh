@@ -153,10 +153,13 @@ blob_manager() {
 
     # Extract only lines that contain real file rows
     mapfile -t LINES < <(
-        echo "$RAW" |
-        grep '│' |
-        grep -E '\.(jpg|mp4|png|pdf|txt)'
-    )
+    echo "$RAW" |
+    awk '
+        /┌/ {in_table=1; next}
+        /└/ {in_table=0}
+        in_table && /│/ && !/Name/
+    '
+)
 
     if [ ${#LINES[@]} -eq 0 ]; then
         echo -e "${RED}No blobs available.${NC}"
