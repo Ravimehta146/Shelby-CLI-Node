@@ -25,7 +25,7 @@ show_menu() {
     echo -e "${YELLOW}7.${NC} Auto Download & Upload Image (Pixabay)"
     echo -e "${YELLOW}8.${NC} Auto Download & Upload Video (Pixabay)"
     echo -e "${YELLOW}9.${NC} Auto Upload From Folder"
-    echo -e "${YELLOW}10.${NC} Download Blob"
+    echo -e "${YELLOW}10.${NC} Blob Manager (Download / Delete / Search)"
     echo -e "${YELLOW}11.${NC} Export Address + Private Key"
     echo -e "${YELLOW}0.${NC} Exit"
     echo -e "${CYAN}====================================================${NC}"
@@ -134,47 +134,86 @@ auto_upload_from_folder() {
 
 # ================= DOWNLOAD =================
 
-download_blob() {
+blob_manager() {
 
-    echo
-    echo -e "${CYAN}Fetching your blobs...${NC}"
-    BLOBS=$(shelby account blobs 2>/dev/null)
+    DOWNLOAD_DIR="$HOME/shelby_downloads"
+    mkdir -p "$DOWNLOAD_DIR"
 
-    if [ -z "$BLOBS" ]; then
+    echo -e "${CYAN}Fetching blobs...${NC}"
+    RAW=$(shelby account blobs 2>/dev/null)
+
+    if [ -z "$RAW" ]; then
         echo -e "${RED}No blobs found.${NC}"
         return
     fi
 
-    # Extract blob names (adjust if format changes)
-    BLOB_LIST=$(echo "$BLOBS" | grep -Eo '[^[:space:]]+\.(jpg|png|mp4|pdf|txt|zip)' )
+    LIST=$(echo "$RAW" | tail -n +3)
 
-    if [ -z "$BLOB_LIST" ]; then
-        echo -e "${RED}Could not parse blob names.${NC}"
+    if [ -z "$LIST" ]; then
+        echo -e "${RED}No blobs available.${NC}"
         return
     fi
 
     echo
-    i=1
-    declare -a ARRAY
-    while read -r line; do
-        ARRAY[$i]="$line"
-        echo "$i) $line"
-        ((i++))
-    done <<< "$BLOB_LIST"
+    read -p "Search keyword (press Enter to skip): " FILTER
+
+    if [ -n "$FILTER" ]; then
+        LIST=$(echo "$LIST" | grep -i "$FILTER")
+        [ -z "$LIST" ] && echo "No match found." && return
+    fi
 
     echo
-    read -p "Select file number to download: " CHOICE
+    i=1
+    declare -a NAMES
+    declare -a SIZES
 
-    SELECTED="${ARRAY[$CHOICE]}"
+    while read -r line; do
+        NAME=$(echo "$line" | awk '{print $1}')
+        SIZE=$(echo "$line" | awk '{print $2}')
+        NAMES[$i]="$NAME"
+        SIZES[$i]="$SIZE"
+        echo "$i) $NAME  |  Size: $SIZE"
+        ((i++))
+    done <<< "$LIST"
+
+    echo
+    read -p "Select file number: " CHOICE
+
+    SELECTED="${NAMES[$CHOICE]}"
+    SIZE_SELECTED="${SIZES[$CHOICE]}"
 
     if [ -z "$SELECTED" ]; then
         echo -e "${RED}Invalid selection.${NC}"
         return
     fi
 
-    read -p "Save as (filename): " OUT
+    echo
+    echo "Selected: $SELECTED"
+    echo "Size: $SIZE_SELECTED"
+    echo
+    echo "1) Download"
+    echo "2) Delete"
+    read -p "Choose action: " ACTION
 
-    shelby download "$SELECTED" "$OUT"
+    case $ACTION in
+        1)
+            OUT="$DOWNLOAD_DIR/$SELECTED"
+            shelby download "$SELECTED" "$OUT"
+            echo -e "${GREEN}Saved to $OUT${NC}"
+            ;;
+        2)
+            read -p "Type DELETE to confirm: " CONFIRM
+            if [ "$CONFIRM" = "DELETE" ]; then
+                shelby account delete "$SELECTED"
+                echo -e "${GREEN}Deleted.${NC}"
+            else
+                echo "Cancelled."
+            fi
+            ;;
+        *)
+            echo "Invalid option."
+            ;;
+    esac
 }
 
 # ================= EXPORT ACCOUNT =================
@@ -217,7 +256,7 @@ while true; do
         7) upload_random_image ;;
         8) upload_random_video ;;
         9) auto_upload_from_folder ;;
-        10) download_blob ;;
+        10) blob_manager ;;
         11) export_account ;;
         0) exit 0 ;;
         *) echo "Invalid option." ;;
