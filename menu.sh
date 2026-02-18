@@ -135,9 +135,46 @@ auto_upload_from_folder() {
 # ================= DOWNLOAD =================
 
 download_blob() {
-    read -p "Enter blob name: " BLOB
-    read -p "Save as: " OUT
-    shelby download "$BLOB" "$OUT"
+
+    echo
+    echo -e "${CYAN}Fetching your blobs...${NC}"
+    BLOBS=$(shelby account blobs 2>/dev/null)
+
+    if [ -z "$BLOBS" ]; then
+        echo -e "${RED}No blobs found.${NC}"
+        return
+    fi
+
+    # Extract blob names (adjust if format changes)
+    BLOB_LIST=$(echo "$BLOBS" | grep -Eo '[^[:space:]]+\.(jpg|png|mp4|pdf|txt|zip)' )
+
+    if [ -z "$BLOB_LIST" ]; then
+        echo -e "${RED}Could not parse blob names.${NC}"
+        return
+    fi
+
+    echo
+    i=1
+    declare -a ARRAY
+    while read -r line; do
+        ARRAY[$i]="$line"
+        echo "$i) $line"
+        ((i++))
+    done <<< "$BLOB_LIST"
+
+    echo
+    read -p "Select file number to download: " CHOICE
+
+    SELECTED="${ARRAY[$CHOICE]}"
+
+    if [ -z "$SELECTED" ]; then
+        echo -e "${RED}Invalid selection.${NC}"
+        return
+    fi
+
+    read -p "Save as (filename): " OUT
+
+    shelby download "$SELECTED" "$OUT"
 }
 
 # ================= EXPORT ACCOUNT =================
