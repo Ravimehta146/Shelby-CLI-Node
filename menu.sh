@@ -141,6 +141,9 @@ blob_manager() {
 
     echo -e "${CYAN}Fetching blobs...${NC}"
     RAW=$(shelby account blobs 2>/dev/null)
+    
+    # Remove ANSI color codes
+RAW=$(echo "$RAW" | sed 's/\x1b\[[0-9;]*m//g')
 
     if [ -z "$RAW" ]; then
         echo -e "${RED}No blobs found.${NC}"
