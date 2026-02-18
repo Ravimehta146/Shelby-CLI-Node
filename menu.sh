@@ -6,43 +6,38 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+UPLOAD_DIR="$HOME/shelby_uploads"
 LOG_DIR="$HOME/shelby_logs"
+mkdir -p "$UPLOAD_DIR"
 mkdir -p "$LOG_DIR"
-
-KEYWORDS=("nature" "city" "technology" "ocean" "mountains" "coding" "sunset" "forest" "space" "architecture")
 
 show_menu() {
     clear
     echo -e "${CYAN}====================================================${NC}"
-    echo "              Shelby Devnet CLI Manager"
+    echo "               Shelby Devnet Manager"
     echo -e "${CYAN}====================================================${NC}"
-    echo -e "${YELLOW}1.${NC} Install Dependencies"
-    echo -e "${YELLOW}2.${NC} Install Node.js & Git"
-    echo -e "${YELLOW}3.${NC} Install Shelby CLI"
-    echo -e "${YELLOW}4.${NC} Initialize Shelby CLI"
-    echo -e "${YELLOW}5.${NC} Faucet (Get Tokens)"
-    echo -e "${YELLOW}6.${NC} Check Account Balance"
-    echo -e "${YELLOW}7.${NC} Random Image Upload (Pixabay)"
-    echo -e "${YELLOW}8.${NC} Export Account Info (Address + Private Key)"
-    echo -e "${YELLOW}10.${NC} Auto Download & Upload Video (Pixabay)"
+    echo -e "${YELLOW}1.${NC} Install Node.js"
+    echo -e "${YELLOW}2.${NC} Install Shelby CLI"
+    echo -e "${YELLOW}3.${NC} Initialize Shelby"
+    echo -e "${YELLOW}4.${NC} Faucet (Get Tokens)"
+    echo -e "${YELLOW}5.${NC} Check Balance"
+    echo -e "${YELLOW}6.${NC} List My Blobs"
+    echo -e "${YELLOW}7.${NC} Auto Download & Upload Image (Pixabay)"
+    echo -e "${YELLOW}8.${NC} Auto Download & Upload Video (Pixabay)"
+    echo -e "${YELLOW}9.${NC} Auto Upload From Folder"
+    echo -e "${YELLOW}10.${NC} Download Blob"
+    echo -e "${YELLOW}11.${NC} Export Address + Private Key"
     echo -e "${YELLOW}0.${NC} Exit"
     echo -e "${CYAN}====================================================${NC}"
 }
 
-install_deps() {
-    sudo apt-get update && sudo apt-get upgrade -y
-    sudo apt install curl iptables build-essential git wget lz4 jq make gcc nano automake autoconf tmux htop nvme-cli libgbm1 pkg-config libssl-dev libleveldb-dev tar clang bsdmainutils ncdu unzip jq -y
-}
-
-install_node_git() {
+install_node() {
     curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-    sudo apt install -y nodejs git
+    sudo apt install -y nodejs
     node -v
-    npm -v
-    git --version
 }
 
-install_shelby_cli() {
+install_shelby() {
     npm i -g @shelby-protocol/cli
     shelby --version
 }
@@ -59,180 +54,136 @@ check_balance() {
     shelby account balance
 }
 
-upload_random_image() {
-
-    if [ ! -f "$HOME/.pixabay_api_key" ]; then
-        echo -e "${RED}Pixabay API key not found.${NC}"
-        echo "Save it using:"
-        echo "echo YOUR_API_KEY > ~/.pixabay_api_key"
-        return
-    fi
-
-    API_KEY=$(cat "$HOME/.pixabay_api_key")
-
-    RANDOM_INDEX=$(( RANDOM % ${#KEYWORDS[@]} ))
-    QUERY=${KEYWORDS[$RANDOM_INDEX]}
-
-    echo -e "${CYAN}Searching Pixabay for: $QUERY${NC}"
-
-    RESPONSE=$(curl -s "https://pixabay.com/api/?key=$API_KEY&q=$QUERY&image_type=photo&per_page=20")
-
-    TOTAL=$(echo "$RESPONSE" | jq '.hits | length')
-
-    if [ "$TOTAL" -eq 0 ]; then
-        echo -e "${RED}No images found.${NC}"
-        return
-    fi
-
-    RANDOM_IMAGE=$(( RANDOM % TOTAL ))
-
-    IMAGE_URL=$(echo "$RESPONSE" | jq -r ".hits[$RANDOM_IMAGE].largeImageURL")
-
-    TIMESTAMP=$(date +%F-%H-%M-%S)
-    FILENAME="$PWD/$QUERY-$TIMESTAMP.jpg"
-
-    curl -s -o "$FILENAME" "$IMAGE_URL"
-
-    if [ ! -f "$FILENAME" ]; then
-        echo -e "${RED}Image download failed.${NC}"
-        return
-    fi
-
-    echo -e "${GREEN}Downloaded: $FILENAME${NC}"
-
-    LOG_FILE="$LOG_DIR/upload-$TIMESTAMP.log"
-
-    echo "Uploading $FILENAME" >> "$LOG_FILE"
-
-    ATTEMPTS=0
-    MAX_RETRY=3
-
-    while [ $ATTEMPTS -lt $MAX_RETRY ]; do
-        shelby upload "$FILENAME" "$(basename "$FILENAME")" -e "in 7 days" --assume-yes
-
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}Upload successful.${NC}"
-            break
-        else
-            echo -e "${YELLOW}Upload failed. Retrying...${NC}"
-            ATTEMPTS=$((ATTEMPTS + 1))
-            sleep 5
-        fi
-    done
-
-    if [ $ATTEMPTS -eq $MAX_RETRY ]; then
-        echo -e "${RED}Upload failed after 3 attempts.${NC}"
-    fi
-
-    rm -f "$FILENAME"
-    echo -e "${GREEN}Local file removed.${NC}"
+list_blobs() {
+    shelby account blobs
 }
 
-export_account_info() {
+# ================= IMAGE UPLOAD =================
+
+upload_random_image() {
+
+    API_KEY=$(cat "$HOME/.pixabay_api_key" 2>/dev/null)
+    if [ -z "$API_KEY" ]; then
+        echo -e "${RED}Pixabay API key not found.${NC}"
+        return
+    fi
+
+    PAGE=$(( RANDOM % 20 + 1 ))
+    RESPONSE=$(curl -s "https://pixabay.com/api/?key=$API_KEY&page=$PAGE&per_page=50")
+
+    TOTAL=$(echo "$RESPONSE" | jq '.hits | length')
+    [ "$TOTAL" -eq 0 ] && echo "No images found." && return
+
+    INDEX=$(( RANDOM % TOTAL ))
+    URL=$(echo "$RESPONSE" | jq -r ".hits[$INDEX].largeImageURL")
+
+    TIMESTAMP="$(date +%s)-$RANDOM"
+    FILE="$PWD/image-$TIMESTAMP.jpg"
+    BLOB="image-$TIMESTAMP.jpg"
+
+    curl -L -o "$FILE" "$URL"
+
+    shelby upload "$FILE" "$BLOB" -e "in 7 days" --assume-yes
+
+    rm -f "$FILE"
+}
+
+# ================= VIDEO UPLOAD =================
+
+upload_random_video() {
+
+    API_KEY=$(cat "$HOME/.pixabay_api_key" 2>/dev/null)
+    if [ -z "$API_KEY" ]; then
+        echo -e "${RED}Pixabay API key not found.${NC}"
+        return
+    fi
+
+    PAGE=$(( RANDOM % 20 + 1 ))
+    RESPONSE=$(curl -s "https://pixabay.com/api/videos/?key=$API_KEY&page=$PAGE&per_page=20")
+
+    TOTAL=$(echo "$RESPONSE" | jq '.hits | length')
+    [ "$TOTAL" -eq 0 ] && echo "No videos found." && return
+
+    INDEX=$(( RANDOM % TOTAL ))
+    URL=$(echo "$RESPONSE" | jq -r ".hits[$INDEX].videos.small.url")
+
+    TIMESTAMP="$(date +%s)-$RANDOM"
+    FILE="$PWD/video-$TIMESTAMP.mp4"
+    BLOB="video-$TIMESTAMP.mp4"
+
+    curl -L -o "$FILE" "$URL"
+
+    shelby upload "$FILE" "$BLOB" -e "in 7 days" --assume-yes
+
+    rm -f "$FILE"
+}
+
+# ================= AUTO FOLDER UPLOAD =================
+
+auto_upload_from_folder() {
+
+    FILES=("$UPLOAD_DIR"/*)
+    [ ${#FILES[@]} -eq 0 ] && echo "No files in $UPLOAD_DIR" && return
+
+    INDEX=$(( RANDOM % ${#FILES[@]} ))
+    FILE="${FILES[$INDEX]}"
+    BLOB=$(basename "$FILE")
+
+    shelby upload "$FILE" "$BLOB" -e "in 7 days" --assume-yes
+}
+
+# ================= DOWNLOAD =================
+
+download_blob() {
+    read -p "Enter blob name: " BLOB
+    read -p "Save as: " OUT
+    shelby download "$BLOB" "$OUT"
+}
+
+# ================= EXPORT ACCOUNT =================
+
+export_account() {
 
     CONFIG="$HOME/.shelby/config.yaml"
 
     if [ ! -f "$CONFIG" ]; then
-        echo -e "${RED}Shelby not initialized. Run shelby init first.${NC}"
+        echo "Shelby not initialized."
         return
     fi
 
-    echo -e "${RED}⚠ WARNING: This will display your private key.${NC}"
-    read -p "Type YES to continue: " confirm
+    echo -e "${RED}WARNING: This will display your private key.${NC}"
+    read -p "Type YES to continue: " CONFIRM
 
-    if [ "$confirm" != "YES" ]; then
-        echo "Cancelled."
-        return
-    fi
+    [ "$CONFIRM" != "YES" ] && echo "Cancelled." && return
 
     echo
-    echo -e "${CYAN}Account Information:${NC}"
-    echo "------------------------------------"
-
-    # Show address from CLI (safer than parsing)
+    echo "Address:"
     shelby account list
-
     echo
-    echo -e "${CYAN}Private Key:${NC}"
-    
-    # Extract private key line from config.yaml
+    echo "Private Key:"
     grep -i "private" "$CONFIG"
-
-    echo "------------------------------------"
-    echo
 }
 
-auto_pixabay_video_upload() {
-
-    if [ ! -f "$HOME/.pixabay_api_key" ]; then
-        echo -e "${RED}Pixabay API key not found.${NC}"
-        return
-    fi
-
-    API_KEY=$(cat "$HOME/.pixabay_api_key")
-
-    echo -e "${CYAN}Fetching random video from Pixabay...${NC}"
-
-    RESPONSE=$(curl -s "https://pixabay.com/api/videos/?key=$API_KEY&per_page=50")
-
-    TOTAL=$(echo "$RESPONSE" | jq '.hits | length')
-
-    if [ "$TOTAL" -eq 0 ]; then
-        echo -e "${RED}No videos found.${NC}"
-        return
-    fi
-
-    RANDOM_VIDEO=$(( RANDOM % TOTAL ))
-
-    VIDEO_URL=$(echo "$RESPONSE" | jq -r ".hits[$RANDOM_VIDEO].videos.medium.url")
-
-    if [ "$VIDEO_URL" = "null" ] || [ -z "$VIDEO_URL" ]; then
-        echo -e "${RED}Failed to get video URL.${NC}"
-        return
-    fi
-
-    TIMESTAMP="$(date +%s)-$RANDOM"
-    FILENAME="$PWD/video-$TIMESTAMP.mp4"
-    BLOB_NAME="video-$TIMESTAMP.mp4"
-
-    echo -e "${CYAN}Downloading video...${NC}"
-    curl -L -o "$FILENAME" "$VIDEO_URL"
-
-    if [ ! -f "$FILENAME" ]; then
-        echo -e "${RED}Video download failed.${NC}"
-        return
-    fi
-
-    echo -e "${GREEN}Downloaded: $(basename "$FILENAME")${NC}"
-
-    echo -e "${CYAN}Uploading to Shelby...${NC}"
-
-    if shelby upload "$FILENAME" "$BLOB_NAME" -e "in 7 days" --assume-yes; then
-        echo -e "${GREEN}Upload successful.${NC}"
-    else
-        echo -e "${RED}Upload failed.${NC}"
-    fi
-
-    rm -f "$FILENAME"
-    echo -e "${GREEN}Local file removed.${NC}"
-}
+# ================= MAIN LOOP =================
 
 while true; do
     show_menu
-    read -p "Select option: " opt
+    read -p "Select option: " OPT
 
-    case $opt in
-        1) install_deps ;;
-        2) install_node_git ;;
-        3) install_shelby_cli ;;
-        4) initialize_shelby ;;
-        5) faucet ;;
-        6) check_balance ;;
+    case $OPT in
+        1) install_node ;;
+        2) install_shelby ;;
+        3) initialize_shelby ;;
+        4) faucet ;;
+        5) check_balance ;;
+        6) list_blobs ;;
         7) upload_random_image ;;
-        8) export_account_info ;;
-        10) auto_pixabay_video_upload ;;
+        8) upload_random_video ;;
+        9) auto_upload_from_folder ;;
+        10) download_blob ;;
+        11) export_account ;;
         0) exit 0 ;;
-        *) echo -e "${RED}Invalid option.${NC}" ;;
+        *) echo "Invalid option." ;;
     esac
 
     echo
