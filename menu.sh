@@ -63,31 +63,46 @@ list_blobs() {
 upload_random_image() {
 
     API_KEY=$(cat "$HOME/.pixabay_api_key" 2>/dev/null)
+
     if [ -z "$API_KEY" ]; then
-        echo -e "${RED}Pixabay API key not found.${NC}"
+        echo "Pixabay API key not found."
         return
     fi
 
-    PAGE=$(( RANDOM % 20 + 1 ))
-    RESPONSE=$(curl -s "https://pixabay.com/api/?key=$API_KEY&page=$PAGE&per_page=50")
+    RESPONSE=$(curl -s "https://pixabay.com/api/?key=$API_KEY&per_page=20")
+
+    # Validate JSON
+    if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
+        echo "Pixabay API returned invalid response."
+        echo "You may have hit rate limit or invalid key."
+        return
+    fi
 
     TOTAL=$(echo "$RESPONSE" | jq '.hits | length')
-    [ "$TOTAL" -eq 0 ] && echo "No images found." && return
 
-    INDEX=$(( RANDOM % TOTAL ))
-    URL=$(echo "$RESPONSE" | jq -r ".hits[$INDEX].largeImageURL")
+    if [ "$TOTAL" -eq 0 ]; then
+        echo "No images found."
+        return
+    fi
 
-    TIMESTAMP="$(date +%s)-$RANDOM"
-    FILE="$PWD/image-$TIMESTAMP.jpg"
-    BLOB="image-$TIMESTAMP.jpg"
+    RANDOM_INDEX=$(( RANDOM % TOTAL ))
 
-    curl -L -o "$FILE" "$URL"
+    IMAGE_URL=$(echo "$RESPONSE" | jq -r ".hits[$RANDOM_INDEX].largeImageURL")
 
-    shelby upload "$FILE" "$BLOB" -e "in 7 days" --assume-yes
+    if [ -z "$IMAGE_URL" ] || [ "$IMAGE_URL" = "null" ]; then
+        echo "Failed to extract image URL."
+        return
+    fi
+
+    TIMESTAMP=$(date +%s)
+    FILE="image-$TIMESTAMP.jpg"
+
+    curl -L -o "$FILE" "$IMAGE_URL"
+
+    shelby upload "$FILE" "$FILE" -e "in 7 days" --assume-yes
 
     rm -f "$FILE"
 }
-
 # ================= VIDEO UPLOAD =================
 
 upload_random_video() {
