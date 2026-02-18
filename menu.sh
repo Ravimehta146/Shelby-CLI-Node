@@ -210,6 +210,7 @@ blob_manager() {
     case $ACTION in
         1)
             OUT="$DOWNLOAD_DIR/$SELECTED"
+            echo "DEBUG: [$SELECTED]"
             if shelby download "$SELECTED" "$OUT"; then
                 echo -e "${GREEN}Saved to $OUT${NC}"
             else
