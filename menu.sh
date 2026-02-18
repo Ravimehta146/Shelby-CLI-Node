@@ -154,11 +154,9 @@ blob_manager() {
     # Extract only lines that contain real file rows
     mapfile -t LINES < <(
     echo "$RAW" |
-    awk '
-        /┌/ {in_table=1; next}
-        /└/ {in_table=0}
-        in_table && /│/ && !/Name/
-    '
+    grep '│' |
+    grep -v 'Name' |
+    grep -v 'Status'
 )
 
     if [ ${#LINES[@]} -eq 0 ]; then
