@@ -147,34 +147,32 @@ blob_manager() {
         return
     fi
 
-    echo
-    read -p "Search keyword (press Enter to skip): " FILTER
+    # Extract only rows that contain blob entries
+    mapfile -t LINES < <(echo "$RAW" | grep '│' | grep -v 'Blob Name')
 
-    # Extract only table rows that contain actual blobs
-    LIST=$(echo "$RAW" | grep '│' | grep -v 'Blob Name')
-
-    if [ -n "$FILTER" ]; then
-        LIST=$(echo "$LIST" | grep -i "$FILTER")
-        [ -z "$LIST" ] && echo "No match found." && return
-    fi
-
-    if [ -z "$LIST" ]; then
+    if [ ${#LINES[@]} -eq 0 ]; then
         echo -e "${RED}No blobs available.${NC}"
         return
     fi
+
+    echo
+    read -p "Search keyword (press Enter to skip): " FILTER
 
     echo
     i=1
     declare -a NAMES
     declare -a SIZES
 
-    while read -r line; do
+    for line in "${LINES[@]}"; do
 
-        # Remove vertical bars and trim spaces
-        CLEAN=$(echo "$line" | sed 's/│//g' | xargs)
+        # Extract columns using │ separator
+        NAME=$(echo "$line" | awk -F '│' '{print $2}' | xargs)
+        SIZE=$(echo "$line" | awk -F '│' '{print $3}' | xargs)
 
-        NAME=$(echo "$CLEAN" | awk '{print $1}')
-        SIZE=$(echo "$CLEAN" | awk '{print $2}')
+        # Apply search filter
+        if [ -n "$FILTER" ]; then
+            echo "$NAME" | grep -iq "$FILTER" || continue
+        fi
 
         if [ -n "$NAME" ]; then
             NAMES[$i]="$NAME"
@@ -183,7 +181,12 @@ blob_manager() {
             ((i++))
         fi
 
-    done <<< "$LIST"
+    done
+
+    if [ $i -eq 1 ]; then
+        echo -e "${RED}No matching blobs found.${NC}"
+        return
+    fi
 
     echo
     read -p "Select file number: " CHOICE
@@ -201,7 +204,7 @@ blob_manager() {
     echo "Size: $SIZE_SELECTED"
     echo
     echo "1) Download"
-    echo "2) Delete"
+    echo "2) Cancel"
     read -p "Choose action: " ACTION
 
     case $ACTION in
@@ -213,17 +216,8 @@ blob_manager() {
                 echo -e "${RED}Download failed.${NC}"
             fi
             ;;
-        2)
-            read -p "Type DELETE to confirm: " CONFIRM
-            if [ "$CONFIRM" = "DELETE" ]; then
-                echo -e "${RED}Note: Shelby Devnet usually does not allow manual deletion.${NC}"
-                echo -e "${YELLOW}Blobs expire automatically.${NC}"
-            else
-                echo "Cancelled."
-            fi
-            ;;
         *)
-            echo "Invalid option."
+            echo "Cancelled."
             ;;
     esac
 }
