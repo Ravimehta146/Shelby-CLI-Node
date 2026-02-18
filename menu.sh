@@ -151,13 +151,11 @@ blob_manager() {
         return
     fi
 
-    # Extract only lines that contain real file rows
+    # Extract only table rows that contain file names
     mapfile -t LINES < <(
-    echo "$RAW" |
-    grep '│' |
-    grep -v 'Name' |
-    grep -v 'Status'
-)
+        echo "$RAW" |
+        grep '^│'
+    )
 
     if [ ${#LINES[@]} -eq 0 ]; then
         echo -e "${RED}No blobs available.${NC}"
@@ -174,20 +172,24 @@ blob_manager() {
 
     for line in "${LINES[@]}"; do
 
-        NAME=$(echo "$line" | awk -F '│' '{print $2}' | xargs)
-        SIZE=$(echo "$line" | awk -F '│' '{print $3}' | xargs)
+        # Extract filename safely (no table parsing issues)
+        NAME=$(echo "$line" | grep -Eo '[a-zA-Z0-9._-]+\.(jpg|mp4|png|pdf|txt)')
+        SIZE=$(echo "$line" | grep -Eo '[0-9.]+ (KB|MB)')
+
+        # Skip header row
+        if [[ "$NAME" == "Name" ]] || [ -z "$NAME" ]; then
+            continue
+        fi
 
         # Apply search filter
         if [ -n "$FILTER" ]; then
             echo "$NAME" | grep -iq "$FILTER" || continue
         fi
 
-        if [ -n "$NAME" ]; then
-            NAMES[$i]="$NAME"
-            SIZES[$i]="$SIZE"
-            echo "$i) $NAME  |  Size: $SIZE"
-            ((i++))
-        fi
+        NAMES[$i]="$NAME"
+        SIZES[$i]="$SIZE"
+        echo "$i) $NAME  |  Size: $SIZE"
+        ((i++))
 
     done
 
@@ -218,10 +220,6 @@ blob_manager() {
     case $ACTION in
         1)
             OUT="$DOWNLOAD_DIR/$SELECTED"
-
-            # Optional debug (remove later)
-            # printf 'DEBUG HEX: '; printf '%s' "$SELECTED" | hexdump -C; echo
-
             if shelby download "$SELECTED" "$OUT"; then
                 echo -e "${GREEN}Saved to $OUT${NC}"
             else
