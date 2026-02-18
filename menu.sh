@@ -23,6 +23,7 @@ show_menu() {
     echo -e "${YELLOW}5.${NC} Faucet (Get Tokens)"
     echo -e "${YELLOW}6.${NC} Check Account Balance"
     echo -e "${YELLOW}7.${NC} Random Image Upload (Pixabay)"
+    echo -e "${YELLOW}8.${NC} Export Private Key"
     echo -e "${YELLOW}0.${NC} Exit"
     echo -e "${CYAN}====================================================${NC}"
 }
@@ -126,6 +127,32 @@ upload_random_image() {
     echo -e "${GREEN}Local file removed.${NC}"
 }
 
+export_private_key() {
+
+    CONFIG="$HOME/.shelby/config.yaml"
+
+    if [ ! -f "$CONFIG" ]; then
+        echo -e "${RED}Shelby config not found. Run shelby init first.${NC}"
+        return
+    fi
+
+    echo -e "${RED}⚠ WARNING: This will display your private key.${NC}"
+    read -p "Type YES to continue: " confirm
+
+    if [ "$confirm" != "YES" ]; then
+        echo "Cancelled."
+        return
+    fi
+
+    echo
+    echo -e "${CYAN}Your Private Key:${NC}"
+    
+    # Extract private key line only
+    grep -i "private" "$CONFIG"
+
+    echo
+}
+
 while true; do
     show_menu
     read -p "Select option: " opt
@@ -138,6 +165,7 @@ while true; do
         5) faucet ;;
         6) check_balance ;;
         7) upload_random_image ;;
+        8) export_private_key ;;
         0) exit 0 ;;
         *) echo -e "${RED}Invalid option.${NC}" ;;
     esac
